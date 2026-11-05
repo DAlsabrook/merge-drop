@@ -15,7 +15,7 @@ Open `index.html` in a browser.
 - Any tile reaching the top row ends the level. Retry the same level; cleared levels stay unlocked.
 
 ## Layout
-- `index.html` — current 4-column × 7-row game.
+- `index.html` — current 4-column × 5-row game.
 - `archive/merge_drop_prototype_7x7.html` — original 7×7 prototype.
 
 The next tile has a chance to match a larger value already on the board, giving you a setup opportunity when small drops stop helping. Ten handcrafted levels introduce goals gradually; later stages remix those board layouts with a gentler move-budget increase.
