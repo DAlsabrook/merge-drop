@@ -18,7 +18,7 @@ header p{margin:4px 0;color:var(--muted);font-size:13px}
 .stat strong{font-size:20px}
 .card{background:#fff;border-radius:22px;padding:12px;box-shadow:0 8px 28px #30315b12}
 .hint{text-align:center;color:var(--muted);font-size:12px;margin:0 0 10px}
-.board{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;touch-action:manipulation;position:relative}
+.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;touch-action:manipulation;position:relative}
 .cell{aspect-ratio:1;border-radius:11px;background:#edf0fa;box-shadow:inset 0 -2px 0 #dfe3f2;display:flex;align-items:center;justify-content:center;min-width:0;position:relative;overflow:visible;cursor:pointer}
 .cell:active{background:#e4e7f7}
 .tile{width:100%;height:100%;border-radius:11px;display:flex;align-items:center;justify-content:center;font-weight:850;font-size:clamp(15px,4.8vw,22px);color:#343653;box-shadow:inset 0 -3px 0 #00000012,0 3px 6px #00000012;position:relative;z-index:1;user-select:none}
@@ -52,7 +52,7 @@ button:focus-visible,.cell:focus-visible{outline:3px solid #8d88ff;outline-offse
 </section>
 <section class="card">
  <p class="hint">Tap a column to drop a tile. After each merge, gravity settles the board before checking for the next chain reaction.</p>
- <div class="board" id="board" aria-label="6-column game board"></div>
+ <div class="board" id="board" aria-label="4-column game board"></div>
  <div class="controls">
   <div class="next">NEXT TILE <div class="preview" id="next">2</div></div>
   <button class="action" id="restart">New game ↻</button>
@@ -62,7 +62,7 @@ button:focus-visible,.cell:focus-visible{outline:3px solid #8d88ff;outline-offse
 </main>
 <div class="overlay" id="overlay"><div class="modal"><h2>Board full!</h2><p id="finalscore"></p><button class="action" id="again">Play again</button></div></div>
 <script>
-const COLS=6, ROWS=7, board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+const COLS=4, ROWS=7, board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
 let nextId=1,score=0,nextValue=2,best=Number(localStorage.getItem('md_best_v2')||0),bestTile=2,ended=false,busy=false;
 const el=id=>document.getElementById(id);
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
