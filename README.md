@@ -12,7 +12,7 @@ Open `index.html` in a browser.
 - The game ends when the top row is full.
 
 ## Layout
-- `index.html` — current 6-column × 7-row game.
+- `index.html` — current 4-column × 7-row game.
 - `archive/merge_drop_prototype_7x7.html` — original 7×7 prototype.
 
 No build tools or dependencies required.
