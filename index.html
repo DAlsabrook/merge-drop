@@ -25,6 +25,7 @@ header p{margin:4px 0;color:var(--muted);font-size:13px}
 .cell:active{background:#e4e7f7}
 .tile{width:100%;height:100%;border-radius:11px;display:flex;align-items:center;justify-content:center;font-weight:850;font-size:clamp(15px,4.8vw,22px);color:#343653;box-shadow:inset 0 -3px 0 #00000012,0 3px 6px #00000012;position:relative;z-index:1;user-select:none}
 .blocker{width:100%;height:100%;border-radius:11px;display:grid;place-items:center;background:linear-gradient(145deg,#d9f2ff,#9fc8e8);border:3px solid #82b5d8;color:#39749a;font-size:clamp(20px,6vw,30px);box-shadow:inset 0 -3px 0 #00000012;user-select:none}
+.gem-tile::after{content:'💎';position:absolute;right:3px;top:1px;font-size:clamp(11px,3vw,15px);line-height:1;filter:drop-shadow(0 1px 1px #0005)}
 .v2{background:#b9e9ff}.v4{background:#8bd8f5}.v6{background:#a9e7c5}.v8{background:#d5ed83}.v10,.v12{background:#ffe18a}.v16,.v18,.v20{background:#ffc18b}.v24,.v30,.v32{background:#ffa6b7}.v36,.v40,.v48,.v50,.v64{background:#d6b5ff}.v128,.v256{background:#b9a6ff}.v512,.v1024{background:#8e8aff;color:white}.v2048{background:#625bff;color:white}
 .drop-in{animation:dropIn .42s cubic-bezier(.18,.78,.25,1.18) both}
 @keyframes dropIn{0%{transform:translateY(-360px) scale(.88);opacity:.65}72%{transform:translateY(5px) scale(1.08,.9);opacity:1}88%{transform:translateY(-3px) scale(.97,1.04)}100%{transform:translateY(0) scale(1)}}
@@ -54,7 +55,7 @@ button:focus-visible,.cell:focus-visible{outline:3px solid #8d88ff;outline-offse
  <div class="stat"><small>Biggest tile</small><strong id="besttile">2</strong></div>
 </section>
 <section class="card">
- <p class="hint">Build the listed goals before moves run out. Merge beside ice to clear it; swipe tiles into empty neighbors.</p>
+ <p class="hint">Build the listed goals before moves run out. Merge beside ice to clear it; merge an equal-value tile into a gem tile to collect it.</p>
  <div class="goalbar"><span id="levelLabel">LEVEL 1</span><span id="movesLabel">22 moves left</span></div>
  <div class="goals" id="goalLabel">Make a 16 tile: 0/1</div>
  <div class="board" id="board" aria-label="4-column game board"></div>
@@ -72,12 +73,12 @@ const LEVELS=[
  {moves:22,tiles:[],blockers:[],goals:[{kind:'target',value:16,label:'Make a 16 tile'}]},
  {moves:24,tiles:[[6,0,4],[6,3,4]],blockers:[],goals:[{kind:'collect',value:8,count:2,label:'Make 2 tiles worth 8'}]},
  {moves:25,tiles:[[6,0,2],[6,1,2],[6,2,2],[6,3,2]],blockers:[[5,0],[5,3]],goals:[{kind:'blockers',count:2,label:'Clear 2 ice blocks'}]},
- {moves:26,tiles:[[6,0,8],[6,3,8],[5,0,4]],blockers:[],goals:[{kind:'target',value:24,label:'Make a 24 tile'}]},
+ {moves:26,tiles:[[6,0,16],[6,1,16],[6,2,16]],gems:[[6,3,48]],blockers:[],goals:[{kind:'gem',value:48,label:'Collect the gem from a 48 tile'}]},
  {moves:28,tiles:[[6,0,4],[6,1,4],[6,2,8],[5,2,8]],blockers:[],goals:[{kind:'collect',value:12,count:1,label:'Make a 12 tile'},{kind:'collect',value:16,count:1,label:'Make a 16 tile'}]},
  {moves:30,tiles:[[6,0,8],[6,3,8]],blockers:[[5,0],[5,3]],goals:[{kind:'target',value:32,label:'Make a 32 tile'},{kind:'blockers',count:2,label:'Clear 2 ice blocks'}]},
  {moves:30,tiles:[[6,0,4],[6,1,4],[6,3,8]],blockers:[],goals:[{kind:'collect',value:8,count:3,label:'Make 3 tiles worth 8'}]},
  {moves:32,tiles:[[6,0,8],[6,3,8],[5,0,4],[5,3,4]],blockers:[[5,1],[5,2],[4,1]],goals:[{kind:'target',value:32,label:'Make a 32 tile'},{kind:'blockers',count:3,label:'Clear 3 ice blocks'}]},
- {moves:34,tiles:[[6,0,16],[6,3,16],[5,0,8]],blockers:[],goals:[{kind:'target',value:48,label:'Make a 48 tile'}]},
+ {moves:34,tiles:[[6,0,16],[5,0,16],[6,2,16],[5,2,16]],gems:[[6,3,64]],blockers:[],goals:[{kind:'gem',value:64,label:'Collect the gem from a 64 tile'}]},
  {moves:36,tiles:[[6,0,8],[6,1,8],[6,2,8],[6,3,8]],blockers:[[5,0],[5,1],[5,2]],goals:[{kind:'target',value:48,label:'Make a 48 tile'},{kind:'blockers',count:3,label:'Clear 3 ice blocks'}]}
 ];
 let nextId=1,score=0,nextValue=2,best=Number(localStorage.getItem('md_best_v2')||0),bestTile=2,ended=false,busy=false,unlockedLevel=Math.max(1,Number(localStorage.getItem('md_unlocked_level')||1)),level=Math.max(1,Number(localStorage.getItem('md_unlocked_level')||1)),movesLeft=22,levelWon=false,goalProgress=[],swipeStart=null,suppressClick=false,suppressClickTimer=0;
@@ -86,7 +87,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function levelConfig(){
  if(level<=LEVELS.length)return LEVELS[level-1];
  const offset=level-LEVELS.length-1,base=LEVELS[5+(offset%5)],cycle=Math.floor(offset/5),shift=(cycle+1)%COLS;
- return {...base,moves:Math.min(base.moves+cycle,40),tiles:base.tiles.map(([r,c,v])=>[r,(c+shift)%COLS,v]),blockers:base.blockers.map(([r,c])=>[r,(c+shift)%COLS])};
+ return {...base,moves:Math.min(base.moves+cycle,40),tiles:base.tiles.map(([r,c,v])=>[r,(c+shift)%COLS,v]),gems:(base.gems||[]).map(([r,c,v])=>[r,(c+shift)%COLS,v]),blockers:base.blockers.map(([r,c])=>[r,(c+shift)%COLS])};
 }
 function tileValue(){
  const matches=board.flat().filter(tile=>tile&&tile.kind!=='blocker'&&tile.v>=8).map(tile=>tile.v);
@@ -94,7 +95,7 @@ function tileValue(){
  const r=Math.random();return r<.68?2:r<.94?4:8
 }
 function goalText(goal,index){
- const amount=goal.kind==='target'?1:goal.count,progress=Math.min(goalProgress[index]||0,amount);
+ const amount=(goal.kind==='target'||goal.kind==='gem')?1:goal.count,progress=Math.min(goalProgress[index]||0,amount);
  return (progress>=amount?'✓ ':'')+goal.label+'  '+progress+'/'+amount;
 }
 function render(){
@@ -104,7 +105,7 @@ function render(){
   cell.setAttribute('role','button');cell.setAttribute('aria-label','Column '+(c+1));
   const item=board[r][c];
   if(item?.kind==='blocker'){const block=document.createElement('div');block.className='blocker';block.textContent='❄';block.setAttribute('aria-label','Ice blocker');cell.appendChild(block)}
-  else if(item){const t=document.createElement('div');t.className='tile v'+Math.min(item.v,2048);t.dataset.id=item.id;t.textContent=item.v;cell.appendChild(t)}
+  else if(item){const t=document.createElement('div');t.className='tile v'+Math.min(item.v,2048)+(item.gem?' gem-tile':'');t.dataset.id=item.id;t.textContent=item.v;cell.appendChild(t)}
   cell.addEventListener('click',()=>{if(suppressClick){suppressClick=false;clearTimeout(suppressClickTimer);return}drop(c)});root.appendChild(cell);
  }
  el('score').textContent=score.toLocaleString();el('best').textContent=best.toLocaleString();el('besttile').textContent=bestTile.toLocaleString();el('next').textContent=nextValue;
@@ -178,12 +179,13 @@ function animateGravity(ids){
   if(node){node.classList.remove('gravity-in');void node.offsetWidth;node.classList.add('gravity-in');}
  }
 }
-function recordMerge(total){
+function recordMerge(total,baseValue,gemCollected){
  const goals=levelConfig().goals;
  for(let i=0;i<goals.length;i++){
   const goal=goals[i];
   if(goal.kind==='target'&&total>=goal.value)goalProgress[i]=1;
   if(goal.kind==='collect'&&total===goal.value)goalProgress[i]=Math.min(goal.count,(goalProgress[i]||0)+1);
+  if(goal.kind==='gem'&&gemCollected&&baseValue===goal.value)goalProgress[i]=1;
  }
 }
 function clearAdjacentBlockers(group){
@@ -204,7 +206,8 @@ async function resolveBoard(preferredId){
   if(!group)break;
   const anchorPos=group.find(([r,c])=>board[r][c].id===preferredId)||group[0];
   const [r,c]=anchorPos,anchor=board[r][c];
-  const total=group.reduce((sum,[rr,cc])=>sum+board[rr][cc].v,0);
+  const total=group.reduce((sum,[rr,cc])=>sum+board[rr][cc].v,0),baseValue=anchor.v;
+  const gemCollected=group.some(([rr,cc])=>board[rr][cc].gem===true);
   const center=cellAt(r,c).getBoundingClientRect();
   for(const [rr,cc] of group){
    if(rr===r&&cc===c)continue;
@@ -216,8 +219,8 @@ async function resolveBoard(preferredId){
   }
   await sleep(285);
   for(const [rr,cc] of group)if(rr!==r||cc!==c)board[rr][cc]=null;
-  anchor.v=total;score+=total;bestTile=Math.max(bestTile,total);
-  recordMerge(total);clearAdjacentBlockers(group);
+  anchor.v=total;if(gemCollected)anchor.gem=false;score+=total;bestTile=Math.max(bestTile,total);
+  recordMerge(total,baseValue,gemCollected);clearAdjacentBlockers(group);
   render();
   const target=cellAt(r,c).firstElementChild;if(target)target.classList.add('pop');
   await sleep(180);
@@ -226,7 +229,7 @@ async function resolveBoard(preferredId){
   preferredId=anchor.id;
  }
 }
-function goalsComplete(){return levelConfig().goals.every((goal,index)=>goalProgress[index]>=(goal.kind==='target'?1:goal.count))}
+function goalsComplete(){return levelConfig().goals.every((goal,index)=>goalProgress[index]>=((goal.kind==='target'||goal.kind==='gem')?1:goal.count))}
 function finishLevel(won,message){
  ended=true;busy=false;levelWon=won;
  if(won&&level>=unlockedLevel){unlockedLevel=level+1;localStorage.setItem('md_unlocked_level',String(unlockedLevel))}
@@ -269,6 +272,7 @@ function startLevel(){
  score=0;bestTile=2;ended=false;busy=false;levelWon=false;
  const config=levelConfig();movesLeft=config.moves;goalProgress=config.goals.map(()=>0);
  for(const [r,c,v] of config.tiles)board[r][c]={v,id:nextId++};
+ for(const [r,c,v] of (config.gems||[]))board[r][c]={v,id:nextId++,gem:true};
  for(const [r,c] of config.blockers)board[r][c]={kind:'blocker',id:nextId++};
  nextValue=tileValue();el('overlay').style.display='none';render();
 }
