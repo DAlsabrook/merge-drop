@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Merge Drop — Prototype v0.3</title>
+<style>
+:root{--ink:#20233a;--muted:#737995;--accent:#635bff}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;justify-content:center;background:linear-gradient(145deg,#f7fbff,#f3efff);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink)}
+main{width:min(100%,440px);padding:19px 15px 28px}
+header{text-align:center;margin:4px 0 15px}
+h1{font-size:32px;letter-spacing:-1.2px;margin:0}
+header p{margin:4px 0;color:var(--muted);font-size:13px}
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.stat{background:#fff;border-radius:15px;padding:9px;text-align:center;box-shadow:0 4px 14px #2b2c5010}
+.stat small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.8px}
+.stat strong{font-size:20px}
+.card{background:#fff;border-radius:22px;padding:12px;box-shadow:0 8px 28px #30315b12}
+.hint{text-align:center;color:var(--muted);font-size:12px;margin:0 0 10px}
+.board{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;touch-action:manipulation;position:relative}
+.cell{aspect-ratio:1;border-radius:11px;background:#edf0fa;box-shadow:inset 0 -2px 0 #dfe3f2;display:flex;align-items:center;justify-content:center;min-width:0;position:relative;overflow:visible;cursor:pointer}
+.cell:active{background:#e4e7f7}
+.tile{width:100%;height:100%;border-radius:11px;display:flex;align-items:center;justify-content:center;font-weight:850;font-size:clamp(15px,4.8vw,22px);color:#343653;box-shadow:inset 0 -3px 0 #00000012,0 3px 6px #00000012;position:relative;z-index:1;user-select:none}
+.v2{background:#b9e9ff}.v4{background:#8bd8f5}.v6{background:#a9e7c5}.v8{background:#d5ed83}.v10,.v12{background:#ffe18a}.v16,.v18,.v20{background:#ffc18b}.v24,.v30,.v32{background:#ffa6b7}.v36,.v40,.v48,.v50,.v64{background:#d6b5ff}.v128,.v256{background:#b9a6ff}.v512,.v1024{background:#8e8aff;color:white}.v2048{background:#625bff;color:white}
+.drop-in{animation:dropIn .42s cubic-bezier(.18,.78,.25,1.18) both}
+@keyframes dropIn{0%{transform:translateY(-360px) scale(.88);opacity:.65}72%{transform:translateY(5px) scale(1.08,.9);opacity:1}88%{transform:translateY(-3px) scale(.97,1.04)}100%{transform:translateY(0) scale(1)}}
+.absorb{animation:absorb .27s cubic-bezier(.2,.75,.3,1) forwards;z-index:4}
+@keyframes absorb{0%{transform:translate(0,0) scale(1);opacity:1}70%{opacity:.9}100%{transform:translate(var(--dx),var(--dy)) scale(.08);opacity:0}}
+.pop{animation:pop .34s cubic-bezier(.18,.85,.25,1.35)}
+@keyframes pop{0%{transform:scale(.65)}55%{transform:scale(1.24)}78%{transform:scale(.92)}100%{transform:scale(1)}}
+.gravity-in{animation:gravityIn .24s cubic-bezier(.2,.8,.3,1)}
+@keyframes gravityIn{0%{transform:translateY(-14px) scale(.98)}72%{transform:translateY(2px) scale(1.02)}100%{transform:translateY(0) scale(1)}}
+.controls{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:13px}
+.next{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:11px;font-weight:750;letter-spacing:.5px}
+.preview{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:18px;color:#343653;background:#b9e9ff;box-shadow:inset 0 -3px 0 #00000012}
+.action{border:0;border-radius:13px;padding:11px 15px;background:#635bff;color:white;font-weight:750;font-size:13px}
+.footer{text-align:center;color:var(--muted);font-size:11px;margin:12px 5px 0;line-height:1.45}
+.overlay{position:fixed;inset:0;background:#17182b99;display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
+.modal{background:white;border-radius:22px;padding:24px;text-align:center;width:min(100%,320px)}
+.modal h2{margin:0 0 6px}.modal p{color:var(--muted);font-size:13px}
+button:focus-visible,.cell:focus-visible{outline:3px solid #8d88ff;outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+<header><h1>MERGE DROP</h1><p>Drop smart. Merge bigger. Chase your best.</p></header>
+<section class="stats">
+ <div class="stat"><small>Score</small><strong id="score">0</strong></div>
+ <div class="stat"><small>Best</small><strong id="best">0</strong></div>
+ <div class="stat"><small>Biggest tile</small><strong id="besttile">2</strong></div>
+</section>
+<section class="card">
+ <p class="hint">Tap a column to drop a tile. After each merge, gravity settles the board before checking for the next chain reaction.</p>
+ <div class="board" id="board" aria-label="6-column game board"></div>
+ <div class="controls">
+  <div class="next">NEXT TILE <div class="preview" id="next">2</div></div>
+  <button class="action" id="restart">New game ↻</button>
+ </div>
+</section>
+<p class="footer">Matching tiles connect horizontally or vertically and combine by adding their values. After every merge, tiles fall to fill gaps, then the board checks again for new matches. Three 2s become 6.</p>
+</main>
+<div class="overlay" id="overlay"><div class="modal"><h2>Board full!</h2><p id="finalscore"></p><button class="action" id="again">Play again</button></div></div>
+<script>
+const COLS=6, ROWS=7, board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+let nextId=1,score=0,nextValue=2,best=Number(localStorage.getItem('md_best_v2')||0),bestTile=2,ended=false,busy=false;
+const el=id=>document.getElementById(id);
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function tileValue(){const r=Math.random();return r<.68?2:r<.94?4:8}
+function render(){
+ const root=el('board');root.innerHTML='';
+ for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+  const cell=document.createElement('div');cell.className='cell';cell.dataset.r=r;cell.dataset.c=c;
+  cell.setAttribute('role','button');cell.setAttribute('aria-label',`Column ${c+1}`);
+  if(board[r][c]){const t=document.createElement('div');t.className='tile v'+Math.min(board[r][c].v,2048);t.dataset.id=board[r][c].id;t.textContent=board[r][c].v;cell.appendChild(t)}
+  cell.addEventListener('click',()=>drop(c));root.appendChild(cell);
+ }
+ el('score').textContent=score.toLocaleString();el('best').textContent=best.toLocaleString();el('besttile').textContent=bestTile.toLocaleString();el('next').textContent=nextValue;
+}
+function cellAt(r,c){return el('board').children[r*COLS+c]}
+function connected(r,c,value){
+ const found=[],seen=new Set([r+','+c]),queue=[[r,c]];
+ while(queue.length){const [rr,cc]=queue.shift();found.push([rr,cc]);
+  for(const [nr,nc] of [[rr-1,cc],[rr+1,cc],[rr,cc-1],[rr,cc+1]]){
+   const key=nr+','+nc;if(nr<0||nr>=ROWS||nc<0||nc>=COLS||seen.has(key))continue;
+   if(board[nr][nc]?.v===value){seen.add(key);queue.push([nr,nc])}
+  }
+ }
+ return found;
+}
+function findTile(id){
+ for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(board[r][c]?.id===id)return [r,c];
+ return null;
+}
+function findMergeGroup(preferredId){
+ if(preferredId!==null&&preferredId!==undefined){
+  const pos=findTile(preferredId);
+  if(pos){const group=connected(pos[0],pos[1],board[pos[0]][pos[1]].v);if(group.length>1)return group;}
+ }
+ for(let r=ROWS-1;r>=0;r--)for(let c=0;c<COLS;c++){
+  if(!board[r][c])continue;
+  const group=connected(r,c,board[r][c].v);
+  if(group.length>1)return group;
+ }
+ return null;
+}
+function settle(){
+ const moved=[];
+ for(let c=0;c<COLS;c++){
+  let write=ROWS-1;
+  for(let r=ROWS-1;r>=0;r--){
+   const tile=board[r][c];
+   if(!tile)continue;
+   if(write!==r){board[write][c]=tile;board[r][c]=null;moved.push(tile.id);}
+   write--;
+  }
+  for(let r=write;r>=0;r--)board[r][c]=null;
+ }
+ return moved;
+}
+function animateGravity(ids){
+ for(const id of ids){
+  const node=el('board').querySelector('.tile[data-id="'+id+'"]');
+  if(node){node.classList.remove('gravity-in');void node.offsetWidth;node.classList.add('gravity-in');}
+ }
+}
+async function resolveBoard(preferredId){
+ let guard=0;
+ while(guard++<100){
+  const group=findMergeGroup(preferredId);
+  if(!group)break;
+  const anchorPos=group.find(([r,c])=>board[r][c].id===preferredId)||group[0];
+  const [r,c]=anchorPos,anchor=board[r][c];
+  const total=group.reduce((sum,[rr,cc])=>sum+board[rr][cc].v,0);
+  const center=cellAt(r,c).getBoundingClientRect();
+  for(const [rr,cc] of group){
+   if(rr===r&&cc===c)continue;
+   const node=cellAt(rr,cc).firstElementChild;if(!node)continue;
+   const rect=cellAt(rr,cc).getBoundingClientRect();
+   node.style.setProperty('--dx',(center.left+center.width/2)-(rect.left+rect.width/2)+'px');
+   node.style.setProperty('--dy',(center.top+center.height/2)-(rect.top+rect.height/2)+'px');
+   node.classList.add('absorb');
+  }
+  await sleep(285);
+  for(const [rr,cc] of group)if(rr!==r||cc!==c)board[rr][cc]=null;
+  anchor.v=total;score+=total;bestTile=Math.max(bestTile,total);
+  render();
+  const target=cellAt(r,c).firstElementChild;if(target)target.classList.add('pop');
+  await sleep(180);
+  const moved=settle();
+  if(moved.length){
+   render();animateGravity(moved);await sleep(240);
+  }
+  preferredId=anchor.id;
+ }
+}
+async function drop(c){
+ if(ended||busy)return;let row=-1;for(let r=ROWS-1;r>=0;r--)if(!board[r][c]){row=r;break}if(row<0)return;
+ busy=true;
+ board[row][c]={v:nextValue,id:nextId++};render();
+ const landed=cellAt(row,c).firstElementChild;if(landed)landed.classList.add('drop-in');
+ await sleep(430);
+ await resolveBoard(id);
+ if(score>best){best=score;localStorage.setItem('md_best_v2',String(best))}
+ nextValue=tileValue();el('next').textContent=nextValue;
+ if(board[0].every(Boolean)){ended=true;el('finalscore').textContent=`You scored ${score.toLocaleString()}. Best: ${best.toLocaleString()}.`;el('overlay').style.display='flex'}
+ busy=false;render();
+}
+function reset(){for(let r=0;r<ROWS;r++)board[r].fill(null);score=0;bestTile=2;ended=false;busy=false;nextValue=tileValue();el('overlay').style.display='none';render()}
+el('restart').addEventListener('click',reset);el('again').addEventListener('click',reset);reset();
+</script>
+</body></html>
