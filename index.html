@@ -20,7 +20,7 @@ header p{margin:4px 0;color:var(--muted);font-size:13px}
 .hint{text-align:center;color:var(--muted);font-size:12px;margin:0 0 10px}
 .goalbar{display:flex;justify-content:space-between;gap:8px;margin:0 2px 10px;color:var(--muted);font-size:11px;font-weight:750}
 .goalbar strong{color:var(--ink)}
-.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;touch-action:manipulation;position:relative}
+.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;touch-action:pan-y;position:relative}
 .cell{aspect-ratio:1;border-radius:11px;background:#edf0fa;box-shadow:inset 0 -2px 0 #dfe3f2;display:flex;align-items:center;justify-content:center;min-width:0;position:relative;overflow:visible;cursor:pointer}
 .cell:active{background:#e4e7f7}
 .tile{width:100%;height:100%;border-radius:11px;display:flex;align-items:center;justify-content:center;font-weight:850;font-size:clamp(15px,4.8vw,22px);color:#343653;box-shadow:inset 0 -3px 0 #00000012,0 3px 6px #00000012;position:relative;z-index:1;user-select:none}
@@ -53,8 +53,8 @@ button:focus-visible,.cell:focus-visible{outline:3px solid #8d88ff;outline-offse
  <div class="stat"><small>Biggest tile</small><strong id="besttile">2</strong></div>
 </section>
 <section class="card">
- <p class="hint">Reach the target before your drops run out. Keep tiles below the top row.</p>
- <div class="goalbar"><span id="levelLabel">LEVEL 1</span><span id="goalLabel">Make a 16</span><span id="movesLabel">18 drops left</span></div>
+ <p class="hint">Drop a tile or swipe one sideways into an empty neighbor. Reach the target before moves run out.</p>
+ <div class="goalbar"><span id="levelLabel">LEVEL 1</span><span id="goalLabel">Make a 16</span><span id="movesLabel">18 moves left</span></div>
  <div class="board" id="board" aria-label="4-column game board"></div>
  <div class="controls">
   <div class="next">NEXT TILE <div class="preview" id="next">2</div></div>
@@ -67,7 +67,7 @@ button:focus-visible,.cell:focus-visible{outline:3px solid #8d88ff;outline-offse
 <script>
 const COLS=4, ROWS=7, board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
 const LEVELS=[{target:16,moves:18},{target:24,moves:20},{target:32,moves:20},{target:48,moves:22},{target:64,moves:22},{target:96,moves:24},{target:128,moves:24},{target:192,moves:26},{target:256,moves:26}];
-let nextId=1,score=0,nextValue=2,best=Number(localStorage.getItem('md_best_v2')||0),bestTile=2,ended=false,busy=false,level=1,movesLeft=18,levelWon=false;
+let nextId=1,score=0,nextValue=2,best=Number(localStorage.getItem('md_best_v2')||0),bestTile=2,ended=false,busy=false,level=1,movesLeft=18,levelWon=false,swipeStart=null,suppressClick=false,suppressClickTimer=0;
 const el=id=>document.getElementById(id);
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function levelConfig(){if(level<=LEVELS.length)return LEVELS[level-1];const last=LEVELS[LEVELS.length-1];return {target:last.target*2**(level-LEVELS.length),moves:28}}
@@ -82,11 +82,27 @@ function render(){
   const cell=document.createElement('div');cell.className='cell';cell.dataset.r=r;cell.dataset.c=c;
   cell.setAttribute('role','button');cell.setAttribute('aria-label',`Column ${c+1}`);
   if(board[r][c]){const t=document.createElement('div');t.className='tile v'+Math.min(board[r][c].v,2048);t.dataset.id=board[r][c].id;t.textContent=board[r][c].v;cell.appendChild(t)}
-  cell.addEventListener('click',()=>drop(c));root.appendChild(cell);
+  cell.addEventListener('click',()=>{if(suppressClick){suppressClick=false;clearTimeout(suppressClickTimer);return}drop(c)});root.appendChild(cell);
  }
  el('score').textContent=score.toLocaleString();el('best').textContent=best.toLocaleString();el('besttile').textContent=bestTile.toLocaleString();el('next').textContent=nextValue;
- const config=levelConfig();el('levelLabel').textContent='LEVEL '+level;el('goalLabel').textContent='Make a '+config.target;el('movesLabel').textContent=movesLeft+' drops left';
+ const config=levelConfig();el('levelLabel').textContent='LEVEL '+level;el('goalLabel').textContent='Make a '+config.target;el('movesLabel').textContent=movesLeft+' moves left';
 }
+const boardRoot=el('board');
+boardRoot.addEventListener('pointerdown',event=>{
+ const cell=event.target.closest('.cell');
+ if(!cell||!cell.firstElementChild)return;
+ swipeStart={x:event.clientX,y:event.clientY,r:Number(cell.dataset.r),c:Number(cell.dataset.c),pointerId:event.pointerId};
+});
+boardRoot.addEventListener('pointerup',event=>{
+ if(!swipeStart)return;
+ const start=swipeStart;swipeStart=null;
+ const dx=event.clientX-start.x,dy=event.clientY-start.y;
+ if(Math.abs(dx)<24||Math.abs(dx)<=Math.abs(dy)*1.25)return;
+ const direction=dx>0?1:-1;
+ suppressClick=true;clearTimeout(suppressClickTimer);suppressClickTimer=setTimeout(()=>suppressClick=false,500);
+ moveTile(start.r,start.c,direction);
+});
+boardRoot.addEventListener('pointercancel',()=>{swipeStart=null});
 function cellAt(r,c){return el('board').children[r*COLS+c]}
 function connected(r,c,value){
  const found=[],seen=new Set([r+','+c]),queue=[[r,c]];
@@ -171,6 +187,17 @@ function finishLevel(won,message){
  el('again').textContent=won?'Next level':'Try again';
  el('overlay').style.display='flex';render();
 }
+async function finishMove(preferredId,dropped){
+ await resolveBoard(preferredId);
+ if(score>best){best=score;localStorage.setItem('md_best_v2',String(best))}
+ movesLeft--;
+ if(dropped)nextValue=tileValue();
+ const target=levelConfig().target;
+ if(board.flat().some(tile=>tile&&tile.v>=target)){finishLevel(true,'You made a '+target+' tile with '+movesLeft+' moves left.');return}
+ if(board[0].some(Boolean)){finishLevel(false,'A tile reached the top.');return}
+ if(movesLeft<=0){finishLevel(false,'You ran out of moves before making a '+target+'.');return}
+ busy=false;render();
+}
 async function drop(c){
  if(ended||busy)return;let row=-1;for(let r=ROWS-1;r>=0;r--)if(!board[r][c]){row=r;break}if(row<0)return;
  busy=true;
@@ -178,15 +205,16 @@ async function drop(c){
  board[row][c]={v:nextValue,id:droppedId};render();
  const landed=cellAt(row,c).firstElementChild;if(landed)landed.classList.add('drop-in');
  await sleep(430);
- await resolveBoard(droppedId);
- if(score>best){best=score;localStorage.setItem('md_best_v2',String(best))}
- movesLeft--;
- nextValue=tileValue();
- const target=levelConfig().target;
- if(board.flat().some(tile=>tile&&tile.v>=target)){finishLevel(true,'You made a '+target+' tile with '+movesLeft+' drops left.');return}
- if(board[0].some(Boolean)){finishLevel(false,'A tile reached the top.');return}
- if(movesLeft<=0){finishLevel(false,'You ran out of drops before making a '+target+'.');return}
- busy=false;render();
+ await finishMove(droppedId,true);
+}
+async function moveTile(r,c,direction){
+ if(ended||busy)return;
+ const nc=c+direction,tile=board[r][c];
+ if(!tile||nc<0||nc>=COLS||board[r][nc])return;
+ busy=true;board[r][c]=null;board[r][nc]=tile;
+ const moved=settle();render();animateGravity(moved);
+ await sleep(moved.length?240:80);
+ await finishMove(tile.id,false);
 }
 function startLevel(){for(let r=0;r<ROWS;r++)board[r].fill(null);ended=false;busy=false;levelWon=false;movesLeft=levelConfig().moves;nextValue=tileValue();el('overlay').style.display='none';render()}
 function reset(){score=0;bestTile=2;level=1;startLevel()}
