@@ -6,10 +6,11 @@ A mobile-friendly browser tile-merging game.
 Open `index.html` in a browser.
 
 ## Rules
-- Tap a column to drop the next tile.
+- Tap a column to drop the next tile, or swipe a tile left or right into an adjacent empty space.
+- Each drop or swipe uses one move; a swipe is followed by gravity and merge resolution.
 - Orthogonally connected tiles of the same value merge into one tile whose value is their sum.
 - The resulting tile is checked again for adjacent matches, enabling chain reactions.
-- Clear each level's target tile before the drop limit runs out.
+- Clear each level's target tile before the move limit runs out.
 - The run ends if any tile reaches the top row or you miss the target within the move limit.
 - Later levels raise the target tile and give you a limited number of drops.
 
