@@ -10,7 +10,7 @@ Open `index.html` in a browser.
 - Each drop or swipe uses one move; a swipe is followed by gravity and merge resolution.
 - Orthogonally connected tiles of the same value merge into one tile whose value is their sum.
 - The resulting tile is checked again for adjacent matches, enabling chain reactions.
-- Complete the listed goals before the move limit runs out. Goals include building target tiles, collecting tiles of an exact value, and clearing ice by merging next to it.
+- Complete each level's goals before the move limit runs out. Goals include building target tiles, collecting exact-value tiles, clearing ice with an adjacent merge, and collecting gems by merging an equal-value tile into the marked block.
 - Later levels combine goals and use different starting boards.
 - Any tile reaching the top row ends the level. Retry the same level; cleared levels stay unlocked.
 
@@ -24,4 +24,4 @@ No build tools or dependencies required.
 
 ## Version 0.3
 
-The current build resolves chain reactions with gravity: after each merge, tiles settle downward before the board checks for another connected match. This allows a falling tile to create a new merge. Levels combine targets, collection orders, and ice blockers with move limits.
+The current build resolves chain reactions with gravity: after each merge, tiles settle downward before the board checks for another connected match. This allows a falling tile to create a new merge. Levels combine target, collection, ice-clear, and gem-collection goals with move limits.
