@@ -16,3 +16,7 @@ Open `index.html` in a browser.
 - `archive/merge_drop_prototype_7x7.html` — original 7×7 prototype.
 
 No build tools or dependencies required.
+
+## Version 0.3
+
+The current build resolves chain reactions with gravity: after each merge, tiles settle downward before the board checks for another connected match. This allows a falling tile to create a new merge.
