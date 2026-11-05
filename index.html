@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Merge Drop</title>
+<title>Merge Drop — Prototype v0.3</title>
 <style>
 :root{--ink:#20233a;--muted:#737995;--accent:#635bff}
 *{box-sizing:border-box}
@@ -29,6 +29,8 @@ header p{margin:4px 0;color:var(--muted);font-size:13px}
 @keyframes absorb{0%{transform:translate(0,0) scale(1);opacity:1}70%{opacity:.9}100%{transform:translate(var(--dx),var(--dy)) scale(.08);opacity:0}}
 .pop{animation:pop .34s cubic-bezier(.18,.85,.25,1.35)}
 @keyframes pop{0%{transform:scale(.65)}55%{transform:scale(1.24)}78%{transform:scale(.92)}100%{transform:scale(1)}}
+.gravity-in{animation:gravityIn .24s cubic-bezier(.2,.8,.3,1)}
+@keyframes gravityIn{0%{transform:translateY(-14px) scale(.98)}72%{transform:translateY(2px) scale(1.02)}100%{transform:translateY(0) scale(1)}}
 .controls{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:13px}
 .next{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:11px;font-weight:750;letter-spacing:.5px}
 .preview{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:18px;color:#343653;background:#b9e9ff;box-shadow:inset 0 -3px 0 #00000012}
@@ -49,14 +51,14 @@ button:focus-visible,.cell:focus-visible{outline:3px solid #8d88ff;outline-offse
  <div class="stat"><small>Biggest tile</small><strong id="besttile">2</strong></div>
 </section>
 <section class="card">
- <p class="hint">Tap a column to drop your tile. All connected matches absorb together.</p>
+ <p class="hint">Tap a column to drop a tile. After each merge, gravity settles the board before checking for the next chain reaction.</p>
  <div class="board" id="board" aria-label="6-column game board"></div>
  <div class="controls">
   <div class="next">NEXT TILE <div class="preview" id="next">2</div></div>
   <button class="action" id="restart">New game ↻</button>
  </div>
 </section>
-<p class="footer">Matching tiles connect horizontally or vertically. Every connected match is absorbed into one tile, adding their values together. Three 2s become 6.</p>
+<p class="footer">Matching tiles connect horizontally or vertically and combine by adding their values. After every merge, tiles fall to fill gaps, then the board checks again for new matches. Three 2s become 6.</p>
 </main>
 <div class="overlay" id="overlay"><div class="modal"><h2>Board full!</h2><p id="finalscore"></p><button class="action" id="again">Play again</button></div></div>
 <script>
@@ -70,7 +72,7 @@ function render(){
  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
   const cell=document.createElement('div');cell.className='cell';cell.dataset.r=r;cell.dataset.c=c;
   cell.setAttribute('role','button');cell.setAttribute('aria-label',`Column ${c+1}`);
-  if(board[r][c]){const t=document.createElement('div');t.className='tile v'+Math.min(board[r][c].v,2048);t.textContent=board[r][c].v;cell.appendChild(t)}
+  if(board[r][c]){const t=document.createElement('div');t.className='tile v'+Math.min(board[r][c].v,2048);t.dataset.id=board[r][c].id;t.textContent=board[r][c].v;cell.appendChild(t)}
   cell.addEventListener('click',()=>drop(c));root.appendChild(cell);
  }
  el('score').textContent=score.toLocaleString();el('best').textContent=best.toLocaleString();el('besttile').textContent=bestTile.toLocaleString();el('next').textContent=nextValue;
@@ -86,12 +88,49 @@ function connected(r,c,value){
  }
  return found;
 }
-async function mergeFrom(r,c){
+function findTile(id){
+ for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(board[r][c]?.id===id)return [r,c];
+ return null;
+}
+function findMergeGroup(preferredId){
+ if(preferredId!==null&&preferredId!==undefined){
+  const pos=findTile(preferredId);
+  if(pos){const group=connected(pos[0],pos[1],board[pos[0]][pos[1]].v);if(group.length>1)return group;}
+ }
+ for(let r=ROWS-1;r>=0;r--)for(let c=0;c<COLS;c++){
+  if(!board[r][c])continue;
+  const group=connected(r,c,board[r][c].v);
+  if(group.length>1)return group;
+ }
+ return null;
+}
+function settle(){
+ const moved=[];
+ for(let c=0;c<COLS;c++){
+  let write=ROWS-1;
+  for(let r=ROWS-1;r>=0;r--){
+   const tile=board[r][c];
+   if(!tile)continue;
+   if(write!==r){board[write][c]=tile;board[r][c]=null;moved.push(tile.id);}
+   write--;
+  }
+  for(let r=write;r>=0;r--)board[r][c]=null;
+ }
+ return moved;
+}
+function animateGravity(ids){
+ for(const id of ids){
+  const node=el('board').querySelector('.tile[data-id="'+id+'"]');
+  if(node){node.classList.remove('gravity-in');void node.offsetWidth;node.classList.add('gravity-in');}
+ }
+}
+async function resolveBoard(preferredId){
  let guard=0;
- while(guard++<30){
-  const current=board[r][c];if(!current)break;
-  const group=connected(r,c,current.v);
-  if(group.length<2)break;
+ while(guard++<100){
+  const group=findMergeGroup(preferredId);
+  if(!group)break;
+  const anchorPos=group.find(([r,c])=>board[r][c].id===preferredId)||group[0];
+  const [r,c]=anchorPos,anchor=board[r][c];
   const total=group.reduce((sum,[rr,cc])=>sum+board[rr][cc].v,0);
   const center=cellAt(r,c).getBoundingClientRect();
   for(const [rr,cc] of group){
@@ -104,16 +143,15 @@ async function mergeFrom(r,c){
   }
   await sleep(285);
   for(const [rr,cc] of group)if(rr!==r||cc!==c)board[rr][cc]=null;
-  board[r][c].v=total;score+=total;bestTile=Math.max(bestTile,total);
+  anchor.v=total;score+=total;bestTile=Math.max(bestTile,total);
   render();
   const target=cellAt(r,c).firstElementChild;if(target)target.classList.add('pop');
   await sleep(180);
- }
-}
-function settle(){
- for(let c=0;c<COLS;c++){
-  const before=[];for(let r=ROWS-1;r>=0;r--)if(board[r][c])before.push(board[r][c]);
-  for(let r=ROWS-1,i=0;r>=0;r--,i++)board[r][c]=before[i]||null;
+  const moved=settle();
+  if(moved.length){
+   render();animateGravity(moved);await sleep(240);
+  }
+  preferredId=anchor.id;
  }
 }
 async function drop(c){
@@ -122,8 +160,7 @@ async function drop(c){
  board[row][c]={v:nextValue,id:nextId++};render();
  const landed=cellAt(row,c).firstElementChild;if(landed)landed.classList.add('drop-in');
  await sleep(430);
- await mergeFrom(row,c);
- settle();render();
+ await resolveBoard(id);
  if(score>best){best=score;localStorage.setItem('md_best_v2',String(best))}
  nextValue=tileValue();el('next').textContent=nextValue;
  if(board[0].every(Boolean)){ended=true;el('finalscore').textContent=`You scored ${score.toLocaleString()}. Best: ${best.toLocaleString()}.`;el('overlay').style.display='flex'}
