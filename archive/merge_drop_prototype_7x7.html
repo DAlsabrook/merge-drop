@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Merge Drop — Original 7×7 Prototype</title>
+<style>
+:root{--ink:#20233a;--muted:#737995;--panel:#fff;--bg:#f5f7ff;--accent:#635bff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#f7fbff,#f4f0ff);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink);min-height:100vh;display:flex;justify-content:center}
+main{width:min(100%,480px);padding:20px 16px 28px}
+header{text-align:center;margin:4px 0 16px}h1{margin:0;font-size:32px;letter-spacing:-1.2px}header p{margin:4px 0;color:var(--muted);font-size:13px}
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:13px}.stat{background:#fff;border-radius:16px;padding:10px;text-align:center;box-shadow:0 4px 14px #2b2c5010}.stat small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.8px}.stat strong{font-size:21px}
+.card{background:#fff;border-radius:22px;padding:12px;box-shadow:0 8px 28px #30315b12}
+.hint{text-align:center;color:var(--muted);font-size:12px;margin:0 0 10px}
+.board{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;touch-action:manipulation}
+.cell{aspect-ratio:1;border:0;border-radius:10px;background:#edf0fa;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(13px,4.3vw,20px);color:#343653;box-shadow:inset 0 -2px 0 #dfe3f2;transition:transform .12s,background .12s;padding:0}
+.cell.filled{box-shadow:inset 0 -3px 0 #00000012,0 2px 4px #0000000b}
+.cell:active{transform:scale(.94)}.cell:disabled{opacity:1}
+.v2{background:#b9e9ff}.v4{background:#8bd8f5}.v8{background:#a9e7c5}.v16{background:#d5ed83}.v32{background:#ffe18a}.v64{background:#ffc18b}.v128{background:#ffa6b7}.v256{background:#d6b5ff}.v512{background:#b9a6ff}.v1024{background:#8e8aff;color:white}.v2048{background:#625bff;color:white}
+.controls{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}.next{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:12px}.preview{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:17px;color:#343653;background:#b9e9ff}
+button.action{border:0;border-radius:13px;padding:11px 16px;background:#635bff;color:white;font-weight:750;font-size:13px}
+.footer{text-align:center;color:var(--muted);font-size:11px;margin:13px 6px 0;line-height:1.45}
+.overlay{position:fixed;inset:0;background:#17182b99;display:none;align-items:center;justify-content:center;padding:20px}.modal{background:white;border-radius:22px;padding:24px;text-align:center;width:min(100%,320px)}.modal h2{margin:0 0 6px}.modal p{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<header><h1>MERGE DROP</h1><p>Drop smart. Merge bigger. Chase your best.</p></header>
+<section class="stats">
+ <div class="stat"><small>Score</small><strong id="score">0</strong></div>
+ <div class="stat"><small>Best</small><strong id="best">0</strong></div>
+ <div class="stat"><small>Best merge</small><strong id="bestmerge">2</strong></div>
+</section>
+<section class="card">
+ <p class="hint">Tap a column to drop your tile. Matching neighbors merge!</p>
+ <div class="board" id="board" aria-label="7 by 7 game board"></div>
+ <div class="controls">
+  <div class="next">NEXT TILE <div class="preview" id="next">2</div></div>
+  <button class="action" id="restart">New game ↻</button>
+ </div>
+</section>
+<p class="footer">Prototype rules: matching tiles touching horizontally or vertically combine into double value. Chain reactions are possible. Fill all columns to end the round.</p>
+</main>
+<div class="overlay" id="overlay"><div class="modal"><h2>Board full!</h2><p id="finalscore"></p><button class="action" id="again">Play again</button></div></div>
+<script>
+const N=7, board=Array.from({length:N},()=>Array(N).fill(null));
+let nextId=1,score=0,nextValue=2,best=Number(localStorage.getItem('md_best')||0),bestMerge=2,ended=false;
+const el=id=>document.getElementById(id);
+function tileValue(){const r=Math.random();return r<.68?2:r<.94?4:8}
+function render(){
+ const root=el('board');root.innerHTML='';
+ for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+  const t=board[r][c],b=document.createElement('button');b.className='cell'+(t?' filled v'+Math.min(t.v,2048):'');
+  b.textContent=t?t.v:'';b.disabled=ended;b.setAttribute('aria-label',t?`row ${r+1}, column ${c+1}, ${t.v}`:`Drop in column ${c+1}`);
+  b.addEventListener('click',()=>drop(c));root.appendChild(b);
+ }
+ el('score').textContent=score.toLocaleString();el('best').textContent=best.toLocaleString();el('bestmerge').textContent=bestMerge.toLocaleString();el('next').textContent=nextValue;
+}
+function settle(){
+ for(let c=0;c<N;c++){const items=[];for(let r=N-1;r>=0;r--)if(board[r][c])items.push(board[r][c]);for(let r=N-1,i=0;r>=0;r--,i++)board[r][c]=items[i]||null;}
+}
+function findId(id){for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(board[r][c]?.id===id)return [r,c];return null}
+function cascade(id){
+ let merges=0,guard=0;
+ while(guard++<100){
+  const pos=findId(id);if(!pos)break;const [r,c]=pos,cur=board[r][c];
+  const neighbors=[[r-1,c],[r,c-1],[r,c+1],[r+1,c]];
+  let target=null;
+  for(const [rr,cc] of neighbors)if(rr>=0&&rr<N&&cc>=0&&cc<N&&board[rr][cc]?.v===cur.v){target=[rr,cc];break}
+  if(!target)break;
+  const [rr,cc]=target;board[rr][cc]=null;cur.v*=2;merges++;bestMerge=Math.max(bestMerge,cur.v);score+=cur.v;
+  settle();
+ }
+ if(merges>1)score+=merges*10;
+}
+function drop(c){
+ if(ended)return;let row=-1;for(let r=N-1;r>=0;r--)if(!board[r][c]){row=r;break}
+ if(row<0)return;
+ const id=nextId++;board[row][c]={v:nextValue,id};cascade(id);
+ nextValue=tileValue();
+ if(score>best){best=score;localStorage.setItem('md_best',String(best))}
+ if(board[0].every(Boolean)){ended=true;el('finalscore').textContent=`You scored ${score.toLocaleString()}. Best: ${best.toLocaleString()}.`;el('overlay').style.display='flex'}
+ render();
+}
+function reset(){for(let r=0;r<N;r++)board[r].fill(null);score=0;bestMerge=2;ended=false;nextValue=tileValue();el('overlay').style.display='none';render()}
+el('restart').addEventListener('click',reset);el('again').addEventListener('click',reset);reset();
+</script>
+</body></html>
