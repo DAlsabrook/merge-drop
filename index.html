@@ -157,10 +157,11 @@ async function resolveBoard(preferredId){
 async function drop(c){
  if(ended||busy)return;let row=-1;for(let r=ROWS-1;r>=0;r--)if(!board[r][c]){row=r;break}if(row<0)return;
  busy=true;
- board[row][c]={v:nextValue,id:nextId++};render();
+ const droppedId=nextId++;
+ board[row][c]={v:nextValue,id:droppedId};render();
  const landed=cellAt(row,c).firstElementChild;if(landed)landed.classList.add('drop-in');
  await sleep(430);
- await resolveBoard(id);
+ await resolveBoard(droppedId);
  if(score>best){best=score;localStorage.setItem('md_best_v2',String(best))}
  nextValue=tileValue();el('next').textContent=nextValue;
  if(board[0].every(Boolean)){ended=true;el('finalscore').textContent=`You scored ${score.toLocaleString()}. Best: ${best.toLocaleString()}.`;el('overlay').style.display='flex'}
